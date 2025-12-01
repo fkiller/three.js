@@ -423,9 +423,12 @@ class WebXRManager extends EventDispatcher {
 
 				// Check that the browser implements the necessary APIs to use an
 				// XRProjectionLayer rather than an XRWebGLLayer
-				const supportsLayers = supportsGlBinding && 'createProjectionLayer' in XRWebGLBinding.prototype;
+				const canUseProjectionLayer =
+					supportsGlBinding &&
+					renderer.capabilities.isWebGL2 === true &&
+					( XRWebGLBinding.prototype && typeof XRWebGLBinding.prototype.createProjectionLayer === 'function' );
 
-				if ( ! supportsLayers ) {
+				const useGlLayerFallback = () => {
 
 					const layerInit = {
 						antialias: attributes.antialias,
@@ -456,6 +459,12 @@ class WebXRManager extends EventDispatcher {
 						}
 					);
 
+				};
+
+				if ( ! canUseProjectionLayer ) {
+
+					useGlLayerFallback();
+
 				} else {
 
 					let depthFormat = null;
@@ -478,26 +487,52 @@ class WebXRManager extends EventDispatcher {
 
 					glBinding = this.getBinding();
 
-					glProjLayer = glBinding.createProjectionLayer( projectionlayerInit );
+					if ( glBinding === null || typeof glBinding.createProjectionLayer !== 'function' ) {
 
-					session.updateRenderState( { layers: [ glProjLayer ] } );
+						useGlLayerFallback();
 
-					renderer.setPixelRatio( 1 );
-					renderer.setSize( glProjLayer.textureWidth, glProjLayer.textureHeight, false );
+					} else {
 
-					newRenderTarget = new WebGLRenderTarget(
-						glProjLayer.textureWidth,
-						glProjLayer.textureHeight,
-						{
-							format: RGBAFormat,
-							type: UnsignedByteType,
-							depthTexture: new DepthTexture( glProjLayer.textureWidth, glProjLayer.textureHeight, depthType, undefined, undefined, undefined, undefined, undefined, undefined, depthFormat ),
-							stencilBuffer: attributes.stencil,
-							colorSpace: renderer.outputColorSpace,
-							samples: attributes.antialias ? 4 : 0,
-							resolveDepthBuffer: ( glProjLayer.ignoreDepthValues === false ),
-							resolveStencilBuffer: ( glProjLayer.ignoreDepthValues === false )
-						} );
+						try {
+
+							glProjLayer = glBinding.createProjectionLayer( projectionlayerInit );
+
+						} catch ( error ) {
+
+							warn( 'THREE.WebXRManager: Projection layers not available, falling back to XRWebGLLayer.', error );
+							glBinding = null;
+							glProjLayer = null;
+
+						}
+
+						if ( glProjLayer === null ) {
+
+							useGlLayerFallback();
+
+						} else {
+
+							session.updateRenderState( { layers: [ glProjLayer ] } );
+
+							renderer.setPixelRatio( 1 );
+							renderer.setSize( glProjLayer.textureWidth, glProjLayer.textureHeight, false );
+
+							newRenderTarget = new WebGLRenderTarget(
+								glProjLayer.textureWidth,
+								glProjLayer.textureHeight,
+								{
+									format: RGBAFormat,
+									type: UnsignedByteType,
+									depthTexture: new DepthTexture( glProjLayer.textureWidth, glProjLayer.textureHeight, depthType, undefined, undefined, undefined, undefined, undefined, undefined, depthFormat ),
+									stencilBuffer: attributes.stencil,
+									colorSpace: renderer.outputColorSpace,
+									samples: attributes.antialias ? 4 : 0,
+									resolveDepthBuffer: ( glProjLayer.ignoreDepthValues === false ),
+									resolveStencilBuffer: ( glProjLayer.ignoreDepthValues === false )
+								} );
+
+						}
+
+					}
 
 				}
 

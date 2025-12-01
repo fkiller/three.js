@@ -28,6 +28,8 @@ function WebGLAnimation() {
 
 		stop: function () {
 
+			if ( context === null ) return;
+
 			context.cancelAnimationFrame( requestId );
 
 			isAnimating = false;

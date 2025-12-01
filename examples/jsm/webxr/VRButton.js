@@ -70,7 +70,7 @@ class VRButton {
 				optionalFeatures: [
 					'local-floor',
 					'bounded-floor',
-					'layers',
+					'hand-tracking',
 					...( sessionInit.optionalFeatures || [] )
 				],
 			};
